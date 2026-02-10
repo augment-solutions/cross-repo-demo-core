@@ -1,0 +1,95 @@
+# E-Commerce Core Infrastructure
+# ===============================
+# Contains: postgres, redis, api-gateway
+#
+# Usage:
+#   Start all services:   docker compose up -d
+#   View logs:            docker compose logs -f [service-name]
+#   Stop all services:    docker compose down
+#   Stop + cleanup:       docker compose down -v
+
+x-healthcheck: &healthcheck
+  interval: 15s
+  timeout: 10s
+  retries: 10
+  start_period: 45s
+
+services:
+  # ===========================================
+  # INFRASTRUCTURE - DATABASES
+  # ===========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: ecomm-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ecomm
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+    networks:
+      - ecomm-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: ecomm-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "redis-cli", "ping"]
+    networks:
+      - ecomm-network
+
+  # ===========================================
+  # API GATEWAY
+  # ===========================================
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    container_name: ecomm-api-gateway
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_URL: redis://redis:6379
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PORT: 8064
+    ports:
+      - "0.0.0.0:8064:8064"
+    healthcheck:
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+      test:
+        - CMD
+        - wget
+        - --quiet
+        - --tries=1
+        - --spider
+        - http://127.0.0.1:8064/health
+    networks:
+      - ecomm-network
+    restart: unless-stopped
+
+networks:
+  ecomm-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
