@@ -72,7 +72,9 @@ export const routes: ServiceRoute[] = [
   // Payment service routes
   { path: '/api/payments', target: config.services.paymentService, requireAuth: true },
   
-  // Inventory service routes
+  // Inventory service routes. Keep the product-list alias before the generic route.
+  { path: '/api/v1/inventory/products', target: config.services.inventoryService, requireAuth: false, rewritePath: '/api/v1/products' },
+  { path: '/api/v1/inventory', target: config.services.inventoryService, requireAuth: false },
   { path: '/api/inventory', target: config.services.inventoryService, requireAuth: false },
   { path: '/api/products', target: config.services.productService, requireAuth: false },
 
