@@ -1,4 +1,4 @@
-import { createProxyMiddleware, Options } from 'http-proxy-middleware';
+import { createProxyMiddleware, fixRequestBody, Options } from 'http-proxy-middleware';
 import { Request, Response, NextFunction } from 'express';
 import { tracer, upstreamLatencyHistogram } from '../instrumentation';
 import { logger } from '../utils/logger';
@@ -33,6 +33,9 @@ export function createServiceProxy(options: ProxyOptions) {
       proxyReq.setHeader('X-Gateway-Request-ID', (req as any).id || 'unknown');
       proxyReq.setHeader('X-Forwarded-Host', req.headers.host || '');
       proxyReq.setHeader('X-Forwarded-Proto', req.protocol);
+
+      // express.json() consumes the incoming stream. Write the body after setting headers.
+      fixRequestBody(proxyReq, req);
 
       logger.debug('Proxying request', {
         service: serviceName,
